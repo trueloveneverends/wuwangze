@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>端到端加密聊天室 | MD3</title>
+    <script src="https://unpkg.com/openpgp@6.2.0/dist/openpgp.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <style>
+        :root {
+            /* MD3 颜色系统 */
+            --md-sys-color-primary: #6750A4;
+            --md-sys-color-on-primary: #FFFFFF;
+            --md-sys-color-primary-container: #EADDFF;
+            --md-sys-color-on-primary-container: #21005D;
+            --md-sys-color-secondary: #625B71;
+            --md-sys-color-on-secondary: #FFFFFF;
+            --md-sys-color-secondary-container: #E8DEF8;
+            --md-sys-color-on-secondary-container: #1D192B;
+            --md-sys-color-tertiary: #7D5260;
+            --md-sys-color-on-tertiary: #FFFFFF;
+            --md-sys-color-tertiary-container: #FFD8E4;
+            --md-sys-color-on-tertiary-container: #31111D;
+            --md-sys-color-error: #B3261E;
+            --md-sys-color-on-error: #FFFFFF;
+            --md-sys-color-error-container: #F9DEDC;
+            --md-sys-color-on-error-container: #410E0B;
+            --md-sys-color-surface: #FFFBFE;
+            --md-sys-color-on-surface: #1C1B1F;
+            --md-sys-color-surface-variant: #E7E0EC;
+            --md-sys-color-on-surface-variant: #49454F;
+            --md-sys-color-outline: #79747E;
+            --md-sys-color-shadow: #000000;
+            
+            /* 深色模式 */
+            @media (prefers-color-scheme: dark) {
+                --md-sys-color-primary: #D0BCFF;
+                --md-sys-color-on-primary: #381E72;
+                --md-sys-color-primary-container: #4F378B;
+                --md-sys-color-on-primary-container: #EADDFF;
+                --md-sys-color-secondary: #CCC2DC;
+                --md-sys-color-on-secondary: #332D41;
+                --md-sys-color-secondary-container: #4A4458;
+                --md-sys-color-on-secondary-container: #E8DEF8;
+                --md-sys-color-tertiary: #EFB8C8;
+                --md-sys-color-on-tertiary: #492532;
+                --md-sys-color-tertiary-container: #633B48;
+                --md-sys-color-on-tertiary-container: #FFD8E4;
+                --md-sys-color-error: #F2B8B5;
+                --md-sys-color-on-error: #601410;
+                --md-sys-color-error-container: #8C1D18;
+                --md-sys-color-on-error-container: #F9DEDC;
+                --md-sys-color-surface: #1C1B1F;
+                --md-sys-color-on-surface: #E6E1E5;
+                --md-sys-color-surface-variant: #49454F;
+                --md-sys-color-on-surface-variant: #CAC4D0;
+                --md-sys-color-outline: #938F99;
+                --md-sys-color-shadow: #000000;
+            }
+            
+            /* 其他自定义变量 */
+            --md-surface-container: var(--md-sys-color-surface-variant);
+            --md-surface-container-high: color-mix(in srgb, var(--md-sys-color-surface-variant) 90%, white);
+            --md-surface-container-low: color-mix(in srgb, var(--md-sys-color-surface-variant) 10%, transparent);
+            --md-shadow-1: 0 1px 2px rgba(0,0,0,0.3), 0 1px 3px 1px rgba(0,0,0,0.15);
+            --md-shadow-2: 0 1px 2px rgba(0,0,0,0.3), 0 2px 6px 2px rgba(0,0,0,0.15);
+            --md-shadow-3: 0 4px 8px 3px rgba(0,0,0,0.15), 0 1px 3px rgba(0,0,0,0.3);
+            --md-state-hover: color-mix(in srgb, currentColor 8%, transparent);
+            --md-state-focus: color-mix(in srgb, currentColor 12%, transparent);
+            --md-state-pressed: color-mix(in srgb, currentColor 12%, transparent);
+            --md-border-radius-xs: 4px;
+            --md-border-radius-sm: 8px;
+            --md-border-radius-md: 12px;
+            --md-border-radius-lg: 16px;
+            --md-border-radius-xl: 28px;
+            --md-border-radius-full: 999px;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, var(--md-sys-color-primary-container), var(--md-sys-color-tertiary-container));
+            color: var(--md-sys-color-on-surface);
+            min-height: 100vh;
+            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        
+        /* 移动端容器布局 */
+        .container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+        }
+        
+        /* 顶部状态栏 - MD3风格 */
+        .top-bar {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: var(--md-sys-color-surface);
+            backdrop-filter: blur(15px);
+            border-bottom: 1px solid var(--md-sys-color-outline);
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            min-height: 64px;
+            z-index: 100;
+            box-shadow: var(--md-shadow-1);
+        }
+        
+        .room-info {
+            flex: 1;
+            min-width: 0;
+            padding-right: 12px;
+        }
+        
+        .room-title {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 2px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: var(--md-sys-color-on-surface);
+        }
+        
+        .room-id {
+            font-size: 12px;
+            color: var(--md-sys-color-on-surface-variant);
+            font-family: monospace;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .top-controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+        
+        .connection-status {
+            padding: 6px 12px;
+            border-radius: var(--md-border-radius-full);
+            font-size: 12px;
+            font-weight: 500;
+            text-align: center;
+            min-width: 60px;
+        }
+        
+        .status-connected { 
+            background: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+        }
+        .status-connecting { 
+            background: var(--md-sys-color-secondary-container);
+            color: var(--md-sys-color-on-secondary-container);
+        }
+        .status-disconnected { 
+            background: var(--md-sys-color-error-container);
+            color: var(--md-sys-color-on-error-container);
+        }
+        
+        .menu-toggle {
+            background: var(--md-surface-container);
+            border: none;
+            color: var(--md-sys-color-on-surface);
+            padding: 8px;
+            border-radius: var(--md-border-radius-md);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 40px;
+            height: 40px;
+            box-shadow: var(--md-shadow-1);
+            transition: background 0.2s ease;
+        }
+        
+        .menu-toggle:hover {
+            background: var(--md-surface-container-high);
+        }
+        
+        .menu-toggle:active {
+            background: var(--md-surface-container-high);
+            box-shadow: none;
+        }
+        
+        /* 主内容区域 */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            position: relative;
+            margin-top: 64px; /* 为固定顶部栏留出空间 */
+        }
+        
+        /* 聊天区域 */
+        .chat-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 0 16px;
+            min-height: 0;
+        }
+        
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 0 100px 0; /* 底部留出输入框空间 */
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .message {
+            max-width: 85%;
+            padding: 16px;
+            border-radius: var(--md-border-radius-lg);
+            word-wrap: break-word;
+            box-shadow: var(--md-shadow-1);
+            position: relative;
+            animation: messageAppear 0.3s ease-out;
+        }
+        
+        @keyframes messageAppear {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .message.sent {
+            background: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+            align-self: flex-end;
+            border-bottom-right-radius: var(--md-border-radius-xs);
+            margin-left: 15%;
+        }
+        
+        .message.received {
+            background: var(--md-sys-color-surface-container);
+            color: var(--md-sys-color-on-surface);
+            align-self: flex-start;
+            border-bottom-left-radius: var(--md-border-radius-xs);
+            margin-right: 15%;
+        }
+        
+        .message.encrypted {
+            background: var(--md-sys-color-error-container);
+            color: var(--md-sys-color-on-error-container);
+            border: 1px solid var(--md-sys-color-error);
+        }
+        
+        .sender-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+        
+        .sender-name {
+            color: var(--md-sys-color-primary);
+            font-weight: 600;
+            flex: 1;
+            min-width: 0;
+        }
+        
+        .message.sent .sender-name {
+            color: var(--md-sys-color-on-primary);
+        }
+        
+        .sender-id {
+            font-size: 11px;
+            color: var(--md-sys-color-outline);
+            margin-left: 8px;
+        }
+        
+        .message-time {
+            font-size: 11px;
+            opacity: 0.7;
+            white-space: nowrap;
+            margin-left: 8px;
+        }
+        
+        .message-text {
+            line-height: 1.4;
+            font-size: 15px;
+        }
+        
+        /* 输入区域 - MD3风格 */
+        .input-area {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 16px;
+            background: var(--md-sys-color-surface);
+            backdrop-filter: blur(15px);
+            border-top: 1px solid var(--md-sys-color-outline);
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+            z-index: 100;
+            box-shadow: var(--md-shadow-3);
+        }
+        
+        .message-input-wrapper {
+            flex: 1;
+            position: relative;
+            background: var(--md-sys-color-surface-container);
+            border-radius: var(--md-border-radius-xl);
+            overflow: hidden;
+            box-shadow: var(--md-shadow-1);
+        }
+        
+        textarea {
+            width: 100%;
+            padding: 12px 16px;
+            border: none;
+            background: transparent;
+            color: var(--md-sys-color-on-surface);
+            resize: none;
+            font-size: 16px;
+            line-height: 1.4;
+            max-height: 120px;
+            min-height: 56px;
+            -webkit-appearance: none;
+            border-radius: var(--md-border-radius-xl);
+            transition: background 0.2s ease;
+        }
+        
+        textarea::placeholder {
+            color: var(--md-sys-color-on-surface-variant);
+        }
+        
+        textarea:focus {
+            outline: none;
+            background: var(--md-surface-container);
+        }
+        
+        .send-button {
+            background: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+            border: none;
+            border-radius: var(--md-border-radius-full);
+            width: 56px;
+            height: 56px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            transition: all 0.2s ease;
+            box-shadow: var(--md-shadow-1);
+        }
+        
+        .send-button:hover:not(:disabled) {
+            background: var(--md-sys-color-primary-container);
+            color: var(--md-sys-color-on-primary-container);
+            box-shadow: var(--md-shadow-2);
+        }
+        
+        .send-button:active:not(:disabled) {
+            transform: scale(0.95);
+        }
+        
+        .send-button:disabled {
+            background: var(--md-sys-color-surface-container-high);
+            color: var(--md-sys-color-on-surface-variant);
+            cursor: not-allowed;
+            box-shadow: none;
+        }
+        
+        /* 侧边栏（用户列表和密钥管理） */
+        .sidebar {
+            position: fixed;
+            top: 0;
+            right: -100%;
+            width: 320px;
+            height: 100vh;
+            background: var(--md-sys-color-surface);
+            backdrop-filter: blur(20px);
+            border-left: 1px solid var(--md-sys-color-outline);
+            transition: right 0.3s ease;
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--md-shadow-3);
+        }
+        
+        .sidebar.open {
+            right: 0;
+        }
+        
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--md-sys-color-outline);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .sidebar-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--md-sys-color-on-surface);
+        }
+        
+        .close-sidebar {
+            background: none;
+            border: none;
+            color: var(--md-sys-color-on-surface);
+            font-size: 24px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: var(--md-border-radius-md);
+            transition: background 0.2s ease;
+        }
+        
+        .close-sidebar:hover {
+            background: var(--md-surface-container);
+        }
+        
+        .sidebar-content {
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            padding: 8px 0;
+        }
+        
+        .sidebar-section {
+            padding: 16px;
+            border-bottom: 1px solid var(--md-sys-color-outline);
+        }
+        
+        .section-title {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 16px;
+            color: var(--md-sys-color-on-surface);
+        }
+        
+        /* 用户列表 - MD3风格 */
+        .user-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .user-item {
+            padding: 12px 16px;
+            background: var(--md-sys-color-surface-container);
+            border-radius: var(--md-border-radius-md);
+            transition: background 0.2s ease;
+        }
+        
+        .user-item.self {
+            background: var(--md-sys-color-primary-container);
+        }
+        
+        .user-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+            font-size: 14px;
+            color: var(--md-sys-color-on-surface);
+        }
+        
+        .user-id {
+            font-size: 12px;
+            color: var(--md-sys-color-on-surface-variant);
+            font-family: monospace;
+            word-break: break-all;
+        }
+        
+        .user-email {
+            font-size: 12px;
+            color: var(--md-sys-color-on-surface-variant);
+            margin-top: 2px;
+        }
+        
+        /* 密钥管理 - MD3风格 */
+        .key-info {
+            background: var(--md-sys-color-surface-container);
+            padding: 16px;
+            border-radius: var(--md-border-radius-md);
+            margin-bottom: 16px;
+            font-size: 14px;
+            color: var(--md-sys-color-on-surface);
+        }
+        
+        .key-id {
+            word-break: break-all;
+            font-family: monospace;
+            font-size: 12px;
+            color: var(--md-sys-color-primary);
+            margin-top: 8px;
+        }
+        
+        .key-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .key-buttons button {
+            padding: 12px 8px;
+            font-size: 14px;
+            background: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+            border: none;
+            border-radius: var(--md-border-radius-md);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: var(--md-shadow-1);
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        
+        .key-buttons button:hover {
+            box-shadow: var(--md-shadow-2);
+            background: var(--md-sys-color-primary-container);
+            color: var(--md-sys-color-on-primary-container);
+        }
+        
+        .key-buttons button:active {
+            transform: translateY(1px);
+            box-shadow: var(--md-shadow-1);
+        }
+        
+        /* 调试信息 */
+        .debug-info {
+            background: var(--md-sys-color-surface-container);
+            padding: 12px;
+            border-radius: var(--md-border-radius-md);
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid var(--md-sys-color-outline);
+            color: var(--md-sys-color-on-surface);
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        /* 遮罩层 */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 150;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+        
+        .overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /* 通知 - MD3风格 */
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-100px);
+            padding: 16px 24px;
+            border-radius: var(--md-border-radius-full);
+            background: var(--md-sys-color-primary);
+            color: var(--md-sys-color-on-primary);
+            box-shadow: var(--md-shadow-3);
+            z-index: 1000;
+            transition: transform 0.3s ease;
+            max-width: calc(100vw - 40px);
+            text-align: center;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .notification.show {
+            transform: translateX(-50%) translateY(0);
+        }
+        
+        .notification.error {
+            background: var(--md-sys-color-error);
+            color: var(--md-sys-color-on-error);
+        }
+        
+        .notification.warning {
+            background: var(--md-sys-color-secondary-container);
+            color: var(--md-sys-color-on-secondary-container);
+        }
+        
+        /* 房间链接复制按钮 - MD3风格 */
+        .copy-room-link {
+            background: var(--md-sys-color-primary);
+            border: none;
+            color: var(--md-sys-color-on-primary);
+            padding: 6px 16px;
+            border-radius: var(--md-border-radius-full);
+            cursor: pointer;
+            font-size: 12px;
+            margin-left: 8px;
+            transition: all 0.2s ease;
+            box-shadow: var(--md-shadow-1);
+            font-weight: 500;
+        }
+        
+        .copy-room-link:hover {
+            box-shadow: var(--md-shadow-2);
+            background: var(--md-sys-color-primary-container);
+            color: var(--md-sys-color-on-primary-container);
+        }
+        
+        /* 图标 */
+        .material-icons {
+            font-size: 18px;
+        }
+        
+        /* 桌面端适配 */
+        @media (min-width: 768px) {
+            .container {
+                max-width: 1200px;
+                margin: 0 auto;
+                padding: 24px;
+                height: calc(100vh - 48px);
+                display: grid;
+                grid-template-columns: 320px 1fr;
+                gap: 24px;
+            }
+            
+            .top-bar {
+                display: none;
+            }
+            
+            .main-content {
+                margin-top: 0; /* 桌面端重置margin */
+                background: var(--md-sys-color-surface);
+                backdrop-filter: blur(10px);
+                border-radius: var(--md-border-radius-lg);
+                box-shadow: var(--md-shadow-2);
+                border: 1px solid var(--md-sys-color-outline);
+                overflow: hidden;
+            }
+            
+            .sidebar {
+                position: static;
+                width: auto;
+                height: auto;
+                background: var(--md-sys-color-surface);
+                backdrop-filter: blur(10px);
+                border-radius: var(--md-border-radius-lg);
+                box-shadow: var(--md-shadow-2);
+                border: 1px solid var(--md-sys-color-outline);
+                display: flex;
+                flex-direction: column;
+                right: 0;
+            }
+            
+            .sidebar-header {
+                display: none;
+            }
+            
+            .sidebar-content {
+                flex: 1;
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            .sidebar-section {
+                padding: 20px 15px;
+                border-bottom: 1px solid var(--md-sys-color-outline);
+            }
+            
+            .sidebar-section:first-child {
+                border-top: none;
+            }
+            
+            .sidebar-section:last-child {
+                border-bottom: none;
+            }
+            
+            .overlay {
+                display: none;
+            }
+            
+            .menu-toggle {
+                display: none;
+            }
+            
+            .chat-area {
+                padding: 20px;
+                display: flex;
+                flex-direction: column;
+                height: 100%;
+            }
+            
+            .messages {
+                padding: 15px 0; /* 桌面端恢复原有padding */
+            }
+            
+            .input-area {
+                position: static; /* 桌面端重置定位 */
+                padding: 20px;
+                z-index: auto;
+                box-shadow: none;
+                border-top: 1px solid var(--md-sys-color-outline);
+            }
+        }
+        
+        /* 小屏幕优化 */
+        @media (max-width: 360px) {
+            .sidebar {
+                width: 100%;
+                right: -100%;
+            }
+            
+            .message {
+                max-width: 90%;
+            }
+            
+            .message.sent {
+                margin-left: 10%;
+            }
+            
+            .message.received {
+                margin-right: 10%;
+            }
+        }
+        
+        /* 触摸优化 */
+        @media (hover: none) {
+            .user-item:hover {
+                background: var(--md-sys-color-surface-container);
+                transform: none;
+            }
+            
+            .send-button:hover {
+                background: var(--md-sys-color-primary);
+                transform: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- 顶部状态栏（移动端） -->
+    <div class="top-bar">
+        <div class="room-info">
+            <div class="room-title" id="roomTitle">E2EE 聊天室</div>
+            <div class="room-id" id="roomIdDisplay"></div>
+        </div>
+        <div class="top-controls">
+            <div id="connectionStatus" class="connection-status status-disconnected">
+                未连接
+            </div>
+            <button class="menu-toggle" id="menuToggle">
+                <span class="material-icons">menu</span>
+            </button>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- 侧边栏（用户列表和密钥管理） -->
+        <div class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="sidebar-title">设置</div>
+                <button class="close-sidebar" id="closeSidebar">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            
+            <div class="sidebar-content">
+                <!-- 用户列表部分 -->
+                <div class="sidebar-section">
+                    <h3 class="section-title">在线用户</h3>
+                    <div class="user-list" id="userList">
+                        <div style="text-align: center; color: var(--md-sys-color-on-surface-variant); padding: 20px;">
+                            等待连接...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 密钥管理部分 -->
+                <div class="sidebar-section">
+                    <h3 class="section-title">密钥管理</h3>
+                    <div class="key-info">
+                        <div>你的密钥ID:</div>
+                        <div id="keyId" class="key-id">未注册</div>
+                    </div>
+                    <div class="key-buttons">
+                        <button id="importPublicKey">
+                            <span class="material-icons">file_download</span>
+                            导入公钥
+                        </button>
+                        <button id="importPrivateKey">
+                            <span class="material-icons">file_download</span>
+                            导入私钥
+                        </button>
+                        <button id="copyPublicKey">
+                            <span class="material-icons">content_copy</span>
+                            复制公钥
+                        </button>
+                        <button id="generateKeys">
+                            <span class="material-icons">vpn_key</span>
+                            生成密钥
+                        </button>
+                    </div>
+                    <div class="debug-info" id="debugInfo"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主内容区域 -->
+        <div class="main-content">
+            <div class="chat-area">
+                <div class="messages" id="messages"></div>
+                <div class="input-area">
+                    <div class="message-input-wrapper">
+                        <textarea id="messageInput" placeholder="输入消息..." disabled rows="1"></textarea>
+                    </div>
+                    <button class="send-button" id="sendButton" disabled>
+                        <span class="material-icons">send</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 遮罩层 -->
+    <div class="overlay" id="overlay"></div>
+    
+    <!-- 通知 -->
+    <div class="notification" id="notification"></div>
+
+    <script>
+        // ========================
+        // 全局变量
+        // ========================
+        let privateKey = '';
+        let publicKey = '';
+        let userId = '';
+        let userName = '';
+        let userEmail = '';
+        let websocket = null;
+        let roomId = '';
+        let users = new Map();
+        let reconnectAttempts = 0;
+        let maxReconnectAttempts = 5;
+        
+        // DOM元素
+        const userListEl = document.getElementById('userList');
+        const messagesEl = document.getElementById('messages');
+        const messageInputEl = document.getElementById('messageInput');
+        const sendButtonEl = document.getElementById('sendButton');
+        const generateKeysBtn = document.getElementById('generateKeys');
+        const importPublicKeyBtn = document.getElementById('importPublicKey');
+        const importPrivateKeyBtn = document.getElementById('importPrivateKey');
+        const copyKeyBtn = document.getElementById('copyPublicKey');
+        const keyIdEl = document.getElementById('keyId');
+        const notificationEl = document.getElementById('notification');
+        const debugInfoEl = document.getElementById('debugInfo');
+        const connectionStatusEl = document.getElementById('connectionStatus');
+        const roomTitleEl = document.getElementById('roomTitle');
+        const roomIdDisplayEl = document.getElementById('roomIdDisplay');
+        const menuToggleEl = document.getElementById('menuToggle');
+        const sidebarEl = document.getElementById('sidebar');
+        const closeSidebarEl = document.getElementById('closeSidebar');
+        const overlayEl = document.getElementById('overlay');
+        
+        // ========================
+        // 移动端UI控制
+        // ========================
+        
+        function setupMobileUI() {
+            // 菜单切换
+            menuToggleEl.addEventListener('click', () => {
+                sidebarEl.classList.add('open');
+                overlayEl.classList.add('show');
+            });
+            
+            // 关闭侧边栏
+            closeSidebarEl.addEventListener('click', closeSidebar);
+            overlayEl.addEventListener('click', closeSidebar);
+            
+            // 自动调整输入框高度
+            messageInputEl.addEventListener('input', autoResizeTextarea);
+            
+            // 阻止iOS Safari的缩放
+            document.addEventListener('gesturestart', e => e.preventDefault());
+            document.addEventListener('gesturechange', e => e.preventDefault());
+        }
+        
+        function closeSidebar() {
+            sidebarEl.classList.remove('open');
+            overlayEl.classList.remove('show');
+        }
+        
+        function autoResizeTextarea() {
+            messageInputEl.style.height = 'auto';
+            const newHeight = Math.min(messageInputEl.scrollHeight, 120);
+            messageInputEl.style.height = newHeight + 'px';
+        }
+        
+        // ========================
+        // 工具函数
+        // ========================
+        
+        // 调试日志函数
+        function debugLog(message) {
+            console.log(message);
+            const timestamp = new Date().toLocaleTimeString();
+            debugInfoEl.textContent += `${timestamp}: ${message}\n`;
+            debugInfoEl.scrollTop = debugInfoEl.scrollHeight;
+        }
+        
+        // 显示通知
+        function showNotification(message, type = 'success') {
+            notificationEl.textContent = message;
+            notificationEl.className = 'notification';
+            
+            if (type === 'error') {
+                notificationEl.classList.add('error');
+            } else if (type === 'warning') {
+                notificationEl.classList.add('warning');
+            }
+            
+            notificationEl.classList.add('show');
+            
+            setTimeout(() => {
+                notificationEl.classList.remove('show');
+            }, 3000);
+        }
+        
+        // 从URL参数获取房间ID
+        function getRoomIdFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('room');
+        }
+        
+        // 更新URL以包含房间ID
+        function updateURLWithRoomId(roomId) {
+            const newUrl = new URL(window.location);
+            newUrl.searchParams.set('room', roomId);
+            window.history.replaceState(null, '', newUrl.toString());
+        }
+        
+        // ========================
+        // WebSocket相关函数
+        // ========================
+        
+        function getWebSocketUrl() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            return `${protocol}//${host}/api/room/${roomId}/websocket`;
+        }
+
+        async function connectWebSocket() {
+            try {
+                const wsUrl = getWebSocketUrl();
+                debugLog(`尝试连接WebSocket: ${wsUrl}`);
+                updateConnectionStatus("connecting");
+            
+                websocket = new WebSocket(wsUrl);
+                setupWebSocketHandlers();
+            
+            } catch (error) {
+                debugLog("WebSocket连接失败: " + error.message);
+                updateConnectionStatus("disconnected");
+                showNotification("连接失败: " + error.message, "error");
+            
+                // 尝试重新获取房间ID并重连
+                try {
+                    roomId = await fetchRoomId();
+                    debugLog(`重新获取房间ID: ${roomId}`);
+                    setTimeout(() => connectWebSocket(), 2000);
+                } catch (retryError) {
+                    debugLog("重新获取房间ID失败: " + retryError.message);
+                }
+            }
+        }
+        
+        function setupWebSocketHandlers() {
+            if (!websocket) return;
+            
+            websocket.onopen = () => {
+                debugLog('WebSocket连接已建立');
+                updateConnectionStatus('connected');
+                reconnectAttempts = 0;
+                
+                // 如果有公钥，立即注册
+                if (publicKey) {
+                    registerUser();
+                }
+                
+                // 启用UI
+                enableUI();
+            };
+            
+            websocket.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    handleWebSocketMessage(data);
+                } catch (error) {
+                    debugLog('解析消息失败: ' + error.message);
+                }
+            };
+            
+            websocket.onclose = () => {
+                debugLog('WebSocket连接已关闭');
+                updateConnectionStatus('disconnected');
+                disableUI();
+                
+                // 自动重连
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    setTimeout(() => {
+                        debugLog(`尝试重连 (${reconnectAttempts}/${maxReconnectAttempts})`);
+                        connectWebSocket();
+                    }, 2000 * reconnectAttempts);
+                }
+            };
+            
+            websocket.onerror = (error) => {
+                debugLog("WebSocket错误: " + error);
+                showNotification('连接错误', 'error');
+            };
+        }
+        
+        function updateConnectionStatus(status) {
+            connectionStatusEl.className = `connection-status status-${status}`;
+            switch (status) {
+                case 'connected':
+                    connectionStatusEl.textContent = '已连接';
+                    break;
+                case 'connecting':
+                    connectionStatusEl.textContent = '连接中...';
+                    break;
+                case 'disconnected':
+                    connectionStatusEl.textContent = '未连接';
+                    break;
+            }
+        }
+        
+        function enableUI() {
+            if (publicKey) {
+                messageInputEl.disabled = false;
+                sendButtonEl.disabled = false;
+            }
+        }
+        
+        function disableUI() {
+            messageInputEl.disabled = true;
+            sendButtonEl.disabled = true;
+        }
+        
+        function registerUser() {
+            if (websocket && websocket.readyState === WebSocket.OPEN && publicKey) {
+                debugLog('发送用户注册请求');
+                websocket.send(JSON.stringify({
+                    type: 'register',
+                    publicKey: publicKey
+                }));
+            }
+        }
+        
+        function handleWebSocketMessage(data) {
+            debugLog('收到消息: ' + data.type);
+            
+            switch (data.type) {
+                case 'registered':
+                case 'authenticated':
+                    userId = data.profile.id;
+                    userName = data.profile.name;
+                    userEmail = data.profile.email;
+                    keyIdEl.textContent = userId;
+                    showNotification('身份验证成功');
+                    enableUI();
+                    
+                    // 请求用户列表
+                    websocket.send(JSON.stringify({ type: 'getUsers' }));
+                    break;
+                    
+                case 'encryptedMessage':
+                    handleEncryptedMessage(data);
+                    break;
+                    
+                case 'userList':
+                    updateUserList(data.users);
+                    break;
+                    
+                case 'error':
+                    showNotification(data.message, 'error');
+                    debugLog('服务器错误: ' + data.message);
+                    break;
+                    
+                default:
+                    debugLog('未知消息类型: ' + data.type);
+            }
+        }
+        
+        // ========================
+        // 密钥管理函数
+        // ========================
+        
+        // 加载本地密钥
+        async function loadLocalKeys() {
+            try {
+                privateKey = localStorage.getItem('pgpPrivateKey') || '';
+                publicKey = localStorage.getItem('pgpPublicKey') || '';
+                
+                if (publicKey) {
+                    debugLog('正在解析本地公钥...');
+                    const pubKey = await openpgp.readKey({ armoredKey: publicKey });
+                    const userID = pubKey.users[0].userID;
+                    
+                    userId = pubKey.getKeyID().toHex();
+                    userName = userID?.name || '匿名';
+                    userEmail = userID?.email || '';
+                    
+                    keyIdEl.textContent = userId;
+                    debugLog('本地密钥加载成功');
+                }
+            } catch (error) {
+                debugLog('公钥解析失败: ' + error.message);
+                showNotification('本地密钥解析失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 导入密钥
+        async function importKey(type) {
+            return new Promise((resolve) => {
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.accept = '.asc,.pgp,.txt';
+                
+                fileInput.onchange = async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) {
+                        resolve();
+                        return;
+                    }
+                    
+                    try {
+                        debugLog(`开始导入${type}密钥文件: ${file.name}`);
+                        let text = await file.text();
+                        
+                        if (type === 'public') {
+                            const pubKey = await openpgp.readKey({ armoredKey: text });
+                            if (pubKey.isPrivate()) {
+                                throw new Error('这不是一个有效的公钥');
+                            }
+                            
+                            publicKey = text;
+                            localStorage.setItem('pgpPublicKey', publicKey);
+                            
+                            const userID = pubKey.users[0].userID;
+                            userId = pubKey.getKeyID().toHex();
+                            userName = userID?.name || '匿名';
+                            userEmail = userID?.email || '';
+                            
+                            keyIdEl.textContent = userId;
+                            showNotification('公钥导入成功');
+                            debugLog('公钥导入成功，用户ID: ' + userId);
+                            
+                            // 重新注册
+                            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                                registerUser();
+                            }
+                            
+                        } else if (type === 'private') {
+                            const privKey = await openpgp.readPrivateKey({ armoredKey: text });
+                            if (!privKey.isPrivate()) {
+                                throw new Error('这不是一个有效的私钥');
+                            }
+                            
+                            privateKey = text;
+                            localStorage.setItem('pgpPrivateKey', privateKey);
+                            
+                            // 如果还没有公钥，从私钥中提取
+                            if (!publicKey) {
+                                publicKey = privKey.toPublic().armor();
+                                localStorage.setItem('pgpPublicKey', publicKey);
+                                
+                                const userID = privKey.users[0].userID;
+                                userId = privKey.getKeyID().toHex();
+                                userName = userID?.name || '匿名';
+                                userEmail = userID?.email || '';
+                                
+                                keyIdEl.textContent = userId;
+                                
+                                // 重新注册
+                                if (websocket && websocket.readyState === WebSocket.OPEN) {
+                                    registerUser();
+                                }
+                            }
+                            
+                            showNotification('私钥导入成功');
+                            debugLog('私钥导入成功');
+                        }
+                        
+                    } catch (error) {
+                        debugLog(`${type}密钥导入失败: ` + error.message);
+                        showNotification(`${type}密钥导入失败: ` + error.message, 'error');
+                    }
+                    
+                    resolve();
+                };
+                
+                fileInput.click();
+            });
+        }
+        
+        // 复制公钥
+        async function copyPublicKey() {
+            if (!publicKey) {
+                showNotification('没有可复制的公钥', 'warning');
+                return;
+            }
+            
+            try {
+                await navigator.clipboard.writeText(publicKey);
+                showNotification('公钥已复制到剪贴板');
+            } catch (error) {
+                // fallback方法
+                const textArea = document.createElement('textarea');
+                textArea.value = publicKey;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+                showNotification('公钥已复制到剪贴板');
+            }
+        }
+        
+        // 生成新密钥
+        async function generateNewKeys() {
+            try {
+                debugLog('开始生成新密钥对...');
+                showNotification('正在生成密钥，请稍候...', 'warning');
+                
+                // 生成密钥对
+                const { privateKey: privKey, publicKey: pubKey } = await openpgp.generateKey({
+                    type: 'ecc',
+                    curve: 'curve25519',
+                    userIDs: [{ 
+                        name: `用户${Math.floor(Math.random() * 1000)}`,
+                        email: `user${Math.floor(Math.random() * 1000)}@example.com`
+                    }],
+                    passphrase: '' // 不使用密码保护
+                });
+                
+                debugLog('密钥对生成完成');
+                
+                // 保存密钥
+                privateKey = privKey;
+                publicKey = pubKey;
+                
+                localStorage.setItem('pgpPrivateKey', privateKey);
+                localStorage.setItem('pgpPublicKey', publicKey);
+                debugLog('密钥已保存到本地存储');
+                
+                // 提取用户信息
+                const pubKeyObj = await openpgp.readKey({ armoredKey: publicKey });
+                const userID = pubKeyObj.users[0].userID;
+                userId = pubKeyObj.getKeyID().toHex();
+                userName = userID?.name || '匿名';
+                userEmail = userID?.email || '';
+                
+                keyIdEl.textContent = userId;
+                debugLog('密钥生成成功，用户ID: ' + userId);
+                
+                showNotification('新密钥已生成');
+                
+                // 重新注册
+                if (websocket && websocket.readyState === WebSocket.OPEN) {
+                    registerUser();
+                }
+                
+            } catch (error) {
+                debugLog('生成密钥失败: ' + error.message);
+                showNotification('生成密钥失败: ' + error.message, 'error');
+                console.error('完整错误信息:', error);
+            }
+        }
+        
+        // ========================
+        // 消息处理函数
+        // ========================
+        
+        // 处理加密消息
+        async function handleEncryptedMessage(data) {
+            debugLog(`收到来自 ${data.senderId} 的加密消息`);
+            
+            // 尝试解密消息
+            if (!privateKey) {
+                displayEncryptedMessage(data, '需要私钥才能解密此消息');
+                return;
+            }
+            
+            try {
+                const encryptedMessage = await openpgp.readMessage({
+                    armoredMessage: data.encryptedData
+                });
+                
+                const privKey = await openpgp.readPrivateKey({
+                    armoredKey: privateKey
+                });
+                
+                const { data: decrypted } = await openpgp.decrypt({
+                    message: encryptedMessage,
+                    decryptionKeys: privKey,
+                    format: 'text'
+                });
+                
+                displayMessage({
+                    senderId: data.senderId,
+                    text: decrypted,
+                    timestamp: data.timestamp,
+                    isSelf: data.senderId === userId
+                });
+                
+                debugLog('消息解密成功');
+                
+            } catch (error) {
+                debugLog('解密失败: ' + error.message);
+                displayEncryptedMessage(data, '解密失败: ' + error.message);
+            }
+        }
+
+        // 显示加密消息（无法解密时）
+        function displayEncryptedMessage(data, reason) {
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message received encrypted';
+            
+            const senderInfo = users.get(data.senderId) || {
+                name: data.senderId.slice(24, 40),
+                email: ''
+            };
+            
+            const timeString = new Date(data.timestamp).toLocaleTimeString();
+            
+            messageEl.innerHTML = `
+                <div class="sender-info">
+                    <span class="sender-name">${senderInfo.name}</span>
+                    <span class="sender-id">[${data.senderId.slice(24, 40)}]</span>
+                    <span class="message-time">${timeString}</span>
+                </div>
+                <div class="message-text">
+                    <div style="font-style: italic; color: #ff6b6b;">🔒 ${reason}</div>
+                    <details style="margin-top: 8px;">
+                        <summary style="cursor: pointer; font-size: 0.8em;">查看加密数据</summary>
+                        <pre style="margin-top: 5px; font-size: 0.7em; white-space: pre-wrap; word-break: break-all;">${data.encryptedData.substring(0, 200)}...</pre>
+                    </details>
+                </div>
+            `;
+            
+            messagesEl.appendChild(messageEl);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+        
+        // 显示消息
+        function displayMessage({ senderId, text, timestamp, isSelf }) {
+            const messageEl = document.createElement('div');
+            messageEl.className = `message ${isSelf ? 'sent' : 'received'}`;
+            
+            const senderInfo = users.get(senderId) || {
+                name: senderId.slice(24, 40),
+                email: ''
+            };
+            
+            const timeString = new Date(timestamp).toLocaleTimeString();
+            
+            messageEl.innerHTML = `
+                <div class="sender-info">
+                    <div>
+                        <span class="sender-name">${senderInfo.name}</span>
+                        <span class="sender-id">[${senderId.slice(24, 40)}]</span>
+                    </div>
+                    <span class="message-time">${timeString}</span>
+                </div>
+                <div class="message-text">${text}</div>
+            `;
+            
+            messagesEl.appendChild(messageEl);
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+        }
+        
+        // 更新用户列表
+        function updateUserList(userList) {
+            userListEl.innerHTML = '';
+            users.clear();
+            
+            debugLog(`更新用户列表，共 ${userList.length} 个用户`);
+            
+            userList.forEach(user => {
+                users.set(user.id, user);
+                
+                const userEl = document.createElement('div');
+                userEl.className = 'user-item';
+                if (user.id === userId) {
+                    userEl.classList.add('self');
+                }
+                
+                const idDisplay = user.id.slice(24, 40);
+                
+                userEl.innerHTML = `
+                    <div class="user-name">${user.name}${user.id === userId ? ' (你)' : ''}</div>
+                    <div class="user-id">${idDisplay}</div>
+                    ${user.email ? `<div class="user-email">${user.email}</div>` : ''}
+                `;
+                
+                userListEl.appendChild(userEl);
+            });
+            
+            if (userList.length === 0) {
+                userListEl.innerHTML = '<div style="text-align: center; color: var(--md-sys-color-on-surface-variant); padding: 20px;">暂无用户</div>';
+            }
+        }
+        
+        // 发送消息
+        async function sendMessage() {
+            const messageText = messageInputEl.value.trim();
+            if (!messageText) return;
+            
+            if (!publicKey) {
+                showNotification('请先导入或生成公钥', 'warning');
+                return;
+            }
+            
+            if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+                showNotification('WebSocket未连接', 'error');
+                return;
+            }
+            
+            try {
+                debugLog('开始加密消息...');
+                
+                // 获取所有用户的公钥进行加密
+                const allUsers = Array.from(users.values());
+                const publicKeys = [];
+                
+                for (const user of allUsers) {
+                    try {
+                        const pubKey = await openpgp.readKey({ armoredKey: user.publicKey });
+                        publicKeys.push(pubKey);
+                    } catch (error) {
+                        debugLog(`无法读取用户 ${user.name} 的公钥: ${error.message}`);
+                    }
+                }
+                
+                if (publicKeys.length === 0) {
+                    showNotification('没有找到有效的公钥', 'warning');
+                    return;
+                }
+                
+                // 为所有用户加密消息
+                const encrypted = await openpgp.encrypt({
+                    message: await openpgp.createMessage({ text: messageText }),
+                    encryptionKeys: publicKeys,
+                    format: 'armored'
+                });
+                
+                debugLog(`消息加密成功，为 ${publicKeys.length} 个用户加密`);
+                
+                // 发送加密消息
+                websocket.send(JSON.stringify({
+                    type: 'message',
+                    encryptedData: encrypted
+                }));
+                
+                // 清空输入框并重置高度
+                messageInputEl.value = '';
+                messageInputEl.style.height = 'auto';
+                
+            } catch (error) {
+                debugLog('加密失败: ' + error.message);
+                showNotification('加密失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 从后端获取房间 ID
+        async function fetchRoomId() {
+            try {
+                const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+                const host = window.location.host;
+            
+                const response = await fetch(`${protocol}//${host}/api/room`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+            
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态: ${response.status}`);
+                }
+            
+                const roomId = await response.text();
+                if (!roomId || roomId.length !== 64) {
+                    throw new Error('无效的房间ID');
+                }
+            
+                return roomId;
+            } catch (error) {
+                debugLog('从后端获取房间 ID 失败: ' + error.message);
+                throw error;
+            }
+        }
+        
+        // ========================
+        // 事件监听器设置
+        // ========================
+        
+        function setupEventListeners() {
+            sendButtonEl.addEventListener('click', sendMessage);
+            messageInputEl.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                }
+            });
+            
+            generateKeysBtn.addEventListener('click', generateNewKeys);
+            importPublicKeyBtn.addEventListener('click', () => importKey('public'));
+            importPrivateKeyBtn.addEventListener('click', () => importKey('private'));
+            copyKeyBtn.addEventListener('click', copyPublicKey);
+        }
+        
+        // ========================
+        // 初始化
+        // ========================
+        
+        // 初始化应用
+        document.addEventListener('DOMContentLoaded', async () => {
+            debugLog('应用初始化...');
+            
+            // 设置移动端UI
+            setupMobileUI();
+            
+            // 尝试从URL参数获取房间ID
+            const roomIdFromURL = getRoomIdFromURL();
+            
+            if (roomIdFromURL) {
+                // 使用URL中提供的房间ID
+                roomId = roomIdFromURL;
+                debugLog(`从URL参数获取房间ID: ${roomId}`);
+                showNotification(`正在加入房间: ${roomId.slice(0, 8)}...`, 'warning');
+            } else {
+                // 创建新房间
+                try {
+                    roomId = await fetchRoomId();
+                    debugLog(`创建新房间: ${roomId}`);
+                    
+                    // 更新URL以包含新房间ID
+                    updateURLWithRoomId(roomId);
+                    showNotification(`已创建新房间: ${roomId.slice(0, 8)}...`);
+                } catch (error) {
+                    debugLog('获取房间 ID 失败: ' + error.message);
+                    showNotification('获取房间 ID 失败', 'error');
+                    return;
+                }
+            }
+            
+            // 更新UI
+            roomTitleEl.textContent = `E2EE 聊天室`;
+            roomIdDisplayEl.innerHTML = `
+                #${roomId.slice(0, 8)}...
+                <button class="copy-room-link" onclick="copyRoomLink()">
+                    复制链接
+                </button>
+            `;
+            
+            // 尝试加载本地密钥
+            await loadLocalKeys();
+            
+            // 连接WebSocket
+            await connectWebSocket();
+            
+            // 设置事件监听器
+            setupEventListeners();
+        });
+        
+        // 复制房间链接
+        function copyRoomLink() {
+            navigator.clipboard.writeText(window.location.href)
+                .then(() => showNotification('房间链接已复制'))
+                .catch(err => showNotification('复制失败: ' + err.message, 'error'));
+        }
+    </script>
+</body>
+</html>
